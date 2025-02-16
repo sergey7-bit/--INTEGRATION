@@ -1,174 +1,318 @@
 import streamlit as st
-import os
-import datetime
-import time
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime, timedelta
+import os
 from io import BytesIO
+import base64
+import numpy as np
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+from reportlab.lib.units import inch
+from reportlab.graphics import renderPDF
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.lib import colors
 
-# Функция-заглушка для транскрипции и анализа
-def transcription_analysis(file_path):
-    time.sleep(3)  # Имитация работы
-    return "Анализ завершен"
+# Функция аутентификации
+def authenticate(username, password):
+    return username == "admin" and password == "admin"
 
-# Функция для загрузки данных оператора
-def load_operator_data(operator, start_date, end_date):
-    return pd.DataFrame({
-        'Метрика': ['Чек-лист', 'Стандарт', 'Запретные фразы'],
-        'Значение': [85, 90, 80]
-    })
-
-# Функция для загрузки данных центра
-def load_center_data(start_date, end_date):
-    return pd.DataFrame({
-        'Оператор': ['Оператор 1', 'Оператор 2', 'Оператор 3'],
-        'Производительность': [85, 90, 80]
-    })
-
-def main():
-    # Словарь для мультиязычности
+# Функция перевода
+def translate(text, language):
     translations = {
-        "Русский": {
-            "title": "Система анализа работы колл-центра",
-            "select_record": "Выбор записи",
-            "start_analysis": "Запуск анализа",
-            "select_operator": "Выбор оператора",
-            "evaluate_operator": "Оценка оператора",
-            "evaluate_center": "Оценка центра",
-            "export_report": "Экспорт отчета",
-            "language": "Язык",
-            "select_date_range": "Выберите период",
-            "start_date": "Начальная дата",
-            "end_date": "Конечная дата",
-            "operator_summary": "Краткая сводка о работе оператора",
-            "final_score": "Итоговая оценка",
-            "recommendations": "Рекомендации",
-            "center_statistics": "Статистика работы всех операторов",
-            "export_format": "Выберите формат экспорта",
-            "download_excel": "Скачать отчет Excel",
-            "pdf_not_implemented": "Экспорт в PDF пока не реализован"
+        "Russian": {
+            "Authorization": "Авторизация",
+            "Select Period": "Выбор периода",
+            "Select Operator": "Выбор оператора",
+            "Evaluate Operator": "Оценка оператора",
+            "Evaluate Center": "Оценка центра",
+            "Export Report": "Экспорт отчета",
+            "Language": "Язык",
+            "Start Date": "Начальная дата",
+            "End Date": "Конечная дата",
+            "Score": "Оценка",
+            "Errors": "Ошибки",
+            "Recommendations": "Рекомендации",
+            "Settings": "Настройки",
+            "Generate Report": "Сгенерировать отчет",
+            "Report generated as": "Отчет сгенерирован как",
+            "Username": "Имя пользователя",
+            "Password": "Пароль",
+            "Login": "Войти",
+            "Invalid username or password": "Неверное имя пользователя или пароль",
+            "Logged in successfully!": "Вход выполнен успешно!",
+            "Start date cannot be later than end date": "Начальная дата не может быть позже конечной даты",
+            "Selected period cannot exceed one year": "Выбранный период не может превышать один год",
+            "Data loaded for period": "Данные загружены за период",
+            "Evaluation for": "Оценка для",
+            "Center Evaluation": "Оценка центра",
+            "Generate report for": "Сгенерировать отчет для",
+            "Operator": "Оператора",
+            "Center": "Центра"
         },
         "English": {
-            "title": "Call Center Analysis System",
-            "select_record": "Select Record",
-            "start_analysis": "Start Analysis",
-            "select_operator": "Select Operator",
-            "evaluate_operator": "Evaluate Operator",
-            "evaluate_center": "Evaluate Center",
-            "export_report": "Export Report",
-            "language": "Language",
-            "select_date_range": "Select Date Range",
-            "start_date": "Start Date",
-            "end_date": "End Date",
-            "operator_summary": "Operator Performance Summary",
-            "final_score": "Final Score",
-            "recommendations": "Recommendations",
-            "center_statistics": "All Operators Statistics",
-            "export_format": "Select Export Format",
-            "download_excel": "Download Excel Report",
-            "pdf_not_implemented": "PDF export is not implemented yet"
+            # English translations are the same as the keys
         },
-        "中文": {
-            "title": "呼叫中心分析系统",
-            "select_record": "选择记录",
-            "start_analysis": "开始分析",
-            "select_operator": "选择操作员",
-            "evaluate_operator": "评估操作员",
-            "evaluate_center": "评估中心",
-            "export_report": "导出报告",
-            "language": "语言",
-            "select_date_range": "选择日期范围",
-            "start_date": "开始日期",
-            "end_date": "结束日期",
-            "operator_summary": "操作员表现摘要",
-            "final_score": "最终得分",
-            "recommendations": "建议",
-            "center_statistics": "所有操作员统计",
-            "export_format": "选择导出格式",
-            "download_excel": "下载Excel报告",
-            "pdf_not_implemented": "PDF导出尚未实现"
+        "Chinese": {
+            "Authorization": "授权",
+            "Select Period": "选择时期",
+            "Select Operator": "选择操作员",
+            "Evaluate Operator": "评估操作员",
+            "Evaluate Center": "评估中心",
+            "Export Report": "导出报告",
+            "Language": "语言",
+            "Start Date": "开始日期",
+            "End Date": "结束日期",
+            "Score": "分数",
+            "Errors": "错误",
+            "Recommendations": "建议",
+            "Settings": "设置",
+            "Generate Report": "生成报告",
+            "Report generated as": "报告生成为",
+            "Username": "用户名",
+            "Password": "密码",
+            "Login": "登录",
+            "Invalid username or password": "用户名或密码无效",
+            "Logged in successfully!": "登录成功！",
+            "Start date cannot be later than end date": "开始日期不能晚于结束日期",
+            "Selected period cannot exceed one year": "所选时期不能超过一年",
+            "Data loaded for period": "已加载时期的数据",
+            "Evaluation for": "评估",
+            "Center Evaluation": "中心评估",
+            "Generate report for": "生成报告",
+            "Operator": "操作员",
+            "Center": "中心"
         }
     }
+    return translations.get(language, {}).get(text, text)
+
+def get_data(start_date, end_date):
+    # Создаем тестовые данные
+    dates = pd.date_range(start=start_date, end=end_date)
+    operators = ['Operator 1', 'Operator 2', 'Operator 3']
+    data = []
+    for date in dates:
+        for operator in operators:
+            score = np.random.randint(60, 100)
+            data.append({'date': date, 'operator': operator, 'score': score})
+    return pd.DataFrame(data)
+
+def get_operators(data):
+    return data['operator'].unique().tolist()
+
+def evaluate_operator(data, operator):
+    operator_data = data[data['operator'] == operator]
+    score = operator_data['score'].mean()
+    return {
+        "score": score,
+        "errors": ["Error 1", "Error 2"],
+        "recommendations": ["Recommendation 1", "Recommendation 2"]
+    }
+
+def evaluate_center(data):
+    score = data['score'].mean()
+    return {
+        "score": score,
+        "errors": ["Center Error 1", "Center Error 2"],
+        "recommendations": ["Center Recommendation 1", "Center Recommendation 2"]
+    }
+
+def generate_report(data, report_type, operator=None):
+    if report_type == "Excel":
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            data.to_excel(writer, sheet_name='Report', index=False)
+        output.seek(0)
+        return output.getvalue()
+    elif report_type == "PDF":
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+
+        # Заголовок
+        title = "Call Center Quality Control Report"
+        if operator:
+            title += f" for {operator}"
+        story.append(Paragraph(title, styles['Title']))
+        story.append(Spacer(1, 12))
+
+        # Добавление данных в отчет
+        for index, row in data.iterrows():
+            story.append(Paragraph(f"Date: {row['date'].strftime('%Y-%m-%d')}", styles['Normal']))
+            story.append(Paragraph(f"Operator: {row['operator']}", styles['Normal']))
+            story.append(Paragraph(f"Score: {row['score']}", styles['Normal']))
+            story.append(Spacer(1, 12))
+
+        # Создание столбчатой диаграммы
+        plt.figure(figsize=(6, 4))
+        avg_scores = data.groupby('operator')['score'].mean()
+        plt.bar(avg_scores.index, avg_scores.values)
+        plt.title('Average Operator Scores')
+        plt.xlabel('Operator')
+        plt.ylabel('Average Score')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+
+        # Сохранение графика во временный файл
+        img_buffer = BytesIO()
+        plt.savefig(img_buffer, format='png')
+        img_buffer.seek(0)
+
+        # Добавление графика в PDF
+        img = Image(img_buffer, width=6*inch, height=4*inch)
+        story.append(img)
+
+        doc.build(story)
+        buffer.seek(0)
+        return buffer.getvalue()
+
+def get_binary_file_downloader_html(bin_file, file_label='File'):
+    bin_str = base64.b64encode(bin_file).decode()
+    href = f'<a href="data:application/octet-stream;base64,{bin_str}" download="{file_label}">Download {file_label}</a>'
+    return href
+
+# Основное приложение Streamlit
+def main():
+    st.set_page_config(page_title="Call Center Quality Control", layout="wide")
+
+    # Состояние сессии
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    if 'language' not in st.session_state:
+        st.session_state.language = "Russian"
+
+    # Аутентификация
+    if not st.session_state.authenticated:
+        st.title(translate("Authorization", st.session_state.language))
+        username = st.text_input(translate("Username", st.session_state.language))
+        password = st.text_input(translate("Password", st.session_state.language), type="password")
+        if st.button(translate("Login", st.session_state.language)):
+            if authenticate(username, password):
+                st.session_state.authenticated = True
+                st.success(translate("Logged in successfully!", st.session_state.language))
+                st.experimental_rerun()
+            else:
+                st.error(translate("Invalid username or password", st.session_state.language))
+        return
+
+    # Основное приложение
+    st.title("Call Center Quality Control")
 
     # Выбор языка
-    lang = st.sidebar.selectbox(
-        "Язык / Language / 语言",
-        ["Русский", "English", "中文"]
+    st.sidebar.title(translate("Settings", st.session_state.language))
+    languages = ["Russian", "English", "Chinese"]
+    selected_language = st.sidebar.selectbox(
+        translate("Language", st.session_state.language),
+        languages,
+        index=languages.index(st.session_state.language)
     )
-    t = translations[lang]
+    if selected_language != st.session_state.language:
+        st.session_state.language = selected_language
+        st.experimental_rerun()
 
-    st.title(t["title"])
+    # Выбор периода
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input(translate("Start Date", st.session_state.language))
+    with col2:
+        end_date = st.date_input(translate("End Date", st.session_state.language))
 
-    # Кнопка выбора записи
-    st.header(t["select_record"])
-    audio_dir = "https://drive.google.com/drive/folders/1XGWXwb0PegaL8frvQE592Ji1YYVuDR0w?usp=sharing"
-    st.write(f"Директория аудиофайлов: {audio_dir}")
+    if st.button(translate("Select Period", st.session_state.language)):
+        if start_date > end_date:
+            st.error(translate("Start date cannot be later than end date", st.session_state.language))
+            return
 
-    # Кнопка запуска анализа
-    if st.button(t["start_analysis"]):
-        with st.spinner('Выполняется анализ...'):
-            result = transcription_analysis("dummy_path")
-        st.success(result)
+        if (end_date - start_date).days > 365:
+            st.error(translate("Selected period cannot exceed one year", st.session_state.language))
+            return
 
-    # Кнопка выбора оператора
-    st.header(t["select_operator"])
-    operator_dir = "https://drive.google.com/drive/folders/11tY7hlni_THw1-m4zeGTvQOHpy4IOQrq"
-    st.write(f"Директория результатов анализа: {operator_dir}")
-    
-    operator = st.selectbox(t["select_operator"], ["Оператор 1", "Оператор 2", "Оператор 3"])
+        data = get_data(start_date, end_date)
+        st.session_state.data = data
+        st.success(f"{translate('Data loaded for period', st.session_state.language)}: {start_date} to {end_date}")
 
-       # Выбор периода
-    st.header(t["select_date_range"])
-    start_date = st.date_input(t["start_date"])
-    end_date = st.date_input(t["end_date"])
+    # Выбор оператора и оценка
+    if 'data' in st.session_state:
+        operators = get_operators(st.session_state.data)
+        selected_operator = st.selectbox(
+            translate("Select Operator", st.session_state.language),
+            operators,
+            key="operator_selection_for_evaluation"
+        )
 
-    # Кнопка оценки оператора
-    if st.button(t["evaluate_operator"]):
-        data = load_operator_data(operator, start_date, end_date)
+               # Оценка оператора
+        if st.button(translate("Evaluate Operator", st.session_state.language)):
+            evaluation = evaluate_operator(st.session_state.data, selected_operator)
+            st.subheader(f"{translate('Evaluation for', st.session_state.language)} {selected_operator}")
+            st.write(f"{translate('Score', st.session_state.language)}: {evaluation['score']:.2f}/100")
+            st.write(f"{translate('Errors', st.session_state.language)}:")
+            for error in evaluation['errors']:
+                st.write(f"- {error}")
+            st.write(f"{translate('Recommendations', st.session_state.language)}:")
+            for rec in evaluation['recommendations']:
+                st.write(f"- {rec}")
+
+            # Визуализация
+            fig, ax = plt.subplots()
+            ax.bar([translate('Score', st.session_state.language), translate('Errors', st.session_state.language)], 
+                   [evaluation['score'], len(evaluation['errors'])])
+            ax.set_ylim(0, 100)
+            st.pyplot(fig)
+
+        # Оценка центра
+        if st.button(translate("Evaluate Center", st.session_state.language)):
+            center_evaluation = evaluate_center(st.session_state.data)
+            st.subheader(translate("Center Evaluation", st.session_state.language))
+            st.write(f"{translate('Score', st.session_state.language)}: {center_evaluation['score']:.2f}/100")
+            st.write(f"{translate('Errors', st.session_state.language)}:")
+            for error in center_evaluation['errors']:
+                st.write(f"- {error}")
+            st.write(f"{translate('Recommendations', st.session_state.language)}:")
+            for rec in center_evaluation['recommendations']:
+                st.write(f"- {rec}")
+
+            # Визуализация
+            fig, ax = plt.subplots()
+            ax.bar([translate('Score', st.session_state.language), translate('Errors', st.session_state.language)], 
+                   [center_evaluation['score'], len(center_evaluation['errors'])])
+            ax.set_ylim(0, 100)
+            st.pyplot(fig)
+
+        # Экспорт отчета
+        report_type = st.selectbox(translate("Export Report", st.session_state.language), ["Excel", "PDF"])
         
-        st.write(t["operator_summary"])
-        st.dataframe(data)
+        col1, col2 = st.columns(2)
+        with col1:
+            report_for = st.radio(translate("Generate report for", st.session_state.language), 
+                                  [translate("Operator", st.session_state.language), 
+                                   translate("Center", st.session_state.language)])
+        with col2:
+            if report_for == translate("Operator", st.session_state.language):
+                selected_operator_for_report = st.selectbox(
+                    translate("Select Operator", st.session_state.language), 
+                    get_operators(st.session_state.data),
+                    key="operator_selection_for_report"
+                )
+            else:
+                selected_operator_for_report = None
 
-        fig, ax = plt.subplots()
-        ax.bar(data['Метрика'], data['Значение'])
-        ax.set_ylim(0, 100)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
-
-        st.write(f"{t['final_score']}: 85/100")
-        st.write(f"{t['recommendations']}: Улучшить работу с запретными фразами")
-
-    # Кнопка оценки центра
-    if st.button(t["evaluate_center"]):
-        data = load_center_data(start_date, end_date)
-        
-        st.write(t["center_statistics"])
-        st.dataframe(data)
-
-        fig, ax = plt.subplots()
-        ax.bar(data['Оператор'], data['Производительность'])
-        ax.set_ylim(0, 100)
-        st.pyplot(fig)
-
-        st.write(f"{t['recommendations']}: Провести дополнительное обучение для Оператора 3")
-
-    # Кнопка экспорта отчетов
-    export_format = st.selectbox(t["export_format"], ["Excel", "PDF"])
-    if st.button(t["export_report"]):
-        if export_format == "Excel":
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                load_operator_data(operator, start_date, end_date).to_excel(writer, sheet_name='Оператор', index=False)
-                load_center_data(start_date, end_date).to_excel(writer, sheet_name='Центр', index=False)
-            st.download_button(
-                label=t["download_excel"],
-                data=output.getvalue(),
-                file_name="report.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        else:
-            st.write(t["pdf_not_implemented"])
+        if st.button(translate("Generate Report", st.session_state.language)):
+            if report_for == translate("Operator", st.session_state.language):
+                report_data = st.session_state.data[st.session_state.data['operator'] == selected_operator_for_report]
+            else:
+                report_data = st.session_state.data
+            
+            report_content = generate_report(report_data, report_type, selected_operator_for_report)
+            
+            file_extension = "xlsx" if report_type == "Excel" else "pdf"
+            file_name = f"{selected_operator_for_report or 'center'}_report.{file_extension}"
+            
+            st.markdown(get_binary_file_downloader_html(report_content, file_name), unsafe_allow_html=True)
+            st.success(f"{translate('Report generated as', st.session_state.language)} {file_name}")
 
 if __name__ == "__main__":
     main()
-
